@@ -109,6 +109,69 @@ conda activate 3dgrut
 
 On Windows, you can use the `install_env.ps1` script to install the environment.
 
+<details>
+<summary><strong>Windows Installation Guide (Tested by Ugur)</strong></summary>
+
+### Prerequisites
+- Visual Studio 2019 with C++ build tools (VS 2022 may cause compiler compatibility issues)
+- CUDA 12.4+ (CUDA 11.8 may have compiler compatibility issues with newer VS versions)
+- Anaconda/Miniconda
+- Git
+
+### Detailed Installation Steps
+
+**1. Use the correct developer environment:**
+Open **"x64 Native Tools Command Prompt for VS 2019"** (not regular command prompt or VS 2022)
+
+**2. Verify your environment (diagnostic commands):**
+```cmd
+echo %PATH% | findstr CUDA
+nvcc --version
+python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}')"
+echo %CUDA_HOME%
+```
+
+**3. Navigate to project and activate environment:**
+```cmd
+cd C:\Users\utaysi\Desktop\Thesis\3dgrut 
+conda activate 3dgrut
+```
+
+**4. Set required environment variables:**
+```cmd
+set CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4 
+set NVCC_APPEND_FLAGS=-allow-unsupported-compiler 
+set DISTUTILS_USE_SDK=1
+```
+
+**5. Install requirements:**
+```cmd
+pip install -r requirements.txt
+```
+
+**6. Install Kaolin (cu124 version):**
+```cmd
+pip install https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu124/kaolin-0.17.0-cp311-cp311-win_amd64.whl
+```
+
+**7. Install project:**
+```cmd
+pip install -e .
+```
+
+### Common Issues & Solutions
+- **"unsupported Microsoft Visual Studio version"**: Use VS 2019 x64 Native Tools Command Prompt instead of VS 2022
+- **Architecture mismatch errors**: Ensure you're using the **x64** Native Tools Command Prompt, not the regular or x86 version
+- **fused-ssim compilation fails**: Make sure CUDA_HOME points to CUDA 12.4+ and NVCC_APPEND_FLAGS is set
+
+### Verification
+After installation, verify everything works:
+```cmd
+python -c "import threedgrut; import torch; print('3DGRUT installation successful!'); print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA device count: {torch.cuda.device_count()}')"
+```
+
+</details>
+
 ### Running with Docker
 
 Build the docker image:
