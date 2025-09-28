@@ -109,6 +109,25 @@ class Playground:
         ps.set_build_default_gui_panels(False)
 
         ps.init()
+        # Detect OpenGL vendor to decide CUDA-OpenGL interop viability.
+        # CUDA-OpenGL interop requires an NVIDIA OpenGL context; Mesa/llvmpipe will segfault when
+        # attempting device-to-device copies. If we detect a non-NVIDIA GL, switch to host2device.
+        try:
+            from OpenGL import GL  # type: ignore
+            _vendor = GL.glGetString(GL.GL_VENDOR)
+            _renderer = GL.glGetString(GL.GL_RENDERER)
+            vendor_str = _vendor.decode("utf-8") if _vendor is not None else ""
+            renderer_str = _renderer.decode("utf-8") if _renderer is not None else ""
+            if self.ps_buffer_mode != "host2device" and ("NVIDIA" not in vendor_str and "NVIDIA" not in renderer_str):
+                logger.warning(
+                    f"OpenGL vendor='{vendor_str}', renderer='{renderer_str}'. "
+                    f"CUDA-OpenGL interop requires NVIDIA OpenGL. Falling back to host2device."
+                )
+                self.ps_buffer_mode = "host2device"
+        except Exception as e:
+            if self.ps_buffer_mode != "host2device":
+                logger.warning(f"Failed to query OpenGL vendor ({e}). Falling back to host2device.")
+                self.ps_buffer_mode = "host2device"
         ps.set_user_callback(self.ps_ui_callback)
 
         self.slice_planes = [ps.add_scene_slice_plane() for _ in range(6)]
