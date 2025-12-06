@@ -36,7 +36,9 @@ class VideoRecorder:
         frames_between_cameras=60,
         video_fps=30,
         min_dof=2.5,
-        max_dof=24
+        max_dof=24,
+        video_width=None,
+        video_height=None
     ):
         """
         Creates a video recorder for saving camera animation along trajectories.
@@ -53,6 +55,8 @@ class VideoRecorder:
             video_fps (int): FPS of exported video
             min_dof (float): For 'depth_of_field' mode only, determines the minimum dof for interpolation start / end
             max_dof (float): For 'depth_of_field' mode only, determines the maximum dof for interpolation start / end
+            video_width (int, optional): Custom video width in pixels. If None, uses camera's native resolution.
+            video_height (int, optional): Custom video height in pixels. If None, uses camera's native resolution.
         """
         self.renderer = renderer
 
@@ -78,6 +82,10 @@ class VideoRecorder:
         self.min_dof = min_dof
         self.max_dof = max_dof
 
+        # Custom video resolution (if None, uses camera's native resolution)
+        self.video_width = video_width
+        self.video_height = video_height
+
     def add_camera(self, camera: Camera):
         self.trajectory.append(camera)
 
@@ -90,12 +98,32 @@ class VideoRecorder:
     def load_trajectory(self):
         self.trajectory = torch.load(self.cameras_save_path)
 
+    def _rescale_camera(self, camera: Camera) -> Camera:
+        """Rescale camera to custom resolution if video_width and video_height are set."""
+        if self.video_width is None and self.video_height is None:
+            return camera
+
+        # Use custom dimensions if specified, otherwise keep original
+        new_width = self.video_width if self.video_width is not None else camera.width
+        new_height = self.video_height if self.video_height is not None else camera.height
+
+        # Create a new camera with the updated resolution
+        return Camera.from_args(
+            eye=camera.cam_pos().squeeze(),
+            at=camera.cam_pos().squeeze() - camera.cam_forward().squeeze(),
+            up=camera.cam_up().squeeze(),
+            fov=camera.fov(in_degrees=False),
+            width=new_width,
+            height=new_height,
+            device=camera.device
+        )
+
     def render_dof_trajectory(self):
         out_video = None
         old_use_dof = self.renderer.use_depth_of_field
         old_focus_z = self.renderer.depth_of_field.focus_z
         try:
-            camera = self.trajectory[0]
+            camera = self._rescale_camera(self.trajectory[0])
             dofs = np.linspace(self.min_dof, self.max_dof, self.frames_between_cameras)
             for dof in tqdm(dofs):
                 self.renderer.use_depth_of_field = True
@@ -127,6 +155,8 @@ class VideoRecorder:
         )
 
         for camera in tqdm(interpolated_path):
+            # Rescale camera to custom resolution if specified
+            camera = self._rescale_camera(camera)
             rgb = self.renderer.render(camera)['rgb']
 
             if out_video is None:
@@ -164,6 +194,10 @@ class VideoRecorder:
         )
 
         first_cam = self.trajectory[0]
+        # Use custom resolution if specified, otherwise use first camera's resolution
+        width = self.video_width if self.video_width is not None else first_cam.width
+        height = self.video_height if self.video_height is not None else first_cam.height
+
         interpolated_path = []
         for eye, at, up in tqdm(zip(cam_poses, cam_ats, cam_ups)):
             interpolated_path.append(
@@ -172,7 +206,7 @@ class VideoRecorder:
                     at=at,
                     up=up,
                     fov=first_cam.fov(in_degrees=False),
-                    width=first_cam.width, height=first_cam.height,
+                    width=width, height=height,
                     device=first_cam.device
                 )
             )
